@@ -1,0 +1,35 @@
+{
+  "_comment": "Synthetic. Shape of GET /v1/models from a plain `llama-server` (no router): one entry, no status.args, no architecture block, context only discoverable through `meta`. First entry reports a runtime n_ctx smaller than n_ctx_train (server started with -c 32768); second omits n_ctx entirely, as older llama.cpp builds do.",
+  "object": "list",
+  "data": [
+    {
+      "id": "qwen3-8b-instruct",
+      "object": "model",
+      "created": 1783616516,
+      "owned_by": "llamacpp",
+      "meta": {
+        "vocab_type": 2,
+        "n_vocab": 151936,
+        "n_ctx": 32768,
+        "n_ctx_train": 262144,
+        "n_embd": 4096,
+        "n_params": 8190735360,
+        "size": 4677847040
+      }
+    },
+    {
+      "id": "mistral-7b-instruct",
+      "object": "model",
+      "created": 1783616516,
+      "owned_by": "llamacpp",
+      "meta": {
+        "vocab_type": 1,
+        "n_vocab": 32768,
+        "n_ctx_train": 32768,
+        "n_embd": 4096,
+        "n_params": 7248023552,
+        "size": 4140374016
+      }
+    }
+  ]
+}

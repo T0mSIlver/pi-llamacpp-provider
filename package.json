@@ -1,0 +1,62 @@
+{
+  "name": "pi-llamacpp-provider",
+  "version": "0.1.0",
+  "description": "pi extension that registers your llama.cpp server as a provider and auto-discovers every model it exposes at /v1/models — context size, vision and thinking support included",
+  "type": "module",
+  "license": "MIT",
+  "author": "Tom Vaucourt",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/T0mSIlver/pi-llamacpp-provider.git"
+  },
+  "homepage": "https://github.com/T0mSIlver/pi-llamacpp-provider#readme",
+  "bugs": {
+    "url": "https://github.com/T0mSIlver/pi-llamacpp-provider/issues"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pi",
+    "pi-coding-agent",
+    "llama.cpp",
+    "llamacpp",
+    "llama-server",
+    "local-llm",
+    "provider",
+    "openai-compatible",
+    "gguf"
+  ],
+  "files": [
+    "src",
+    "test",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "scripts": {
+    "test": "node test/provider.mjs",
+    "typecheck": "tsc --noEmit",
+    "verify": "npm run typecheck && npm test"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.80.3",
+    "@types/node": "^24.0.0",
+    "typescript": "^6.0.0"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  }
+}
