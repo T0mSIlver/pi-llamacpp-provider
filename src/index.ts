@@ -33,7 +33,7 @@
  * Zero runtime dependencies. Install: `pi install npm:pi-llamacpp-provider`
  */
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -100,10 +100,13 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): LlamaConfig {
 		// llama.cpp ignores the key unless started with --api-key, but pi requires
 		// a non-empty one to consider the provider authenticated.
 		apiKey: env.LLAMACPP_API_KEY || "sk-llamacpp-local",
-		timeoutMs: Number(env.LLAMACPP_TIMEOUT_MS) || 4000,
+		// A nonsense value falls back to the default rather than through it: a negative
+		// timeout would make AbortSignal.timeout throw and degrade every model to the
+		// fallback, and a negative maxTokens is a value pi rejects outright.
+		timeoutMs: positiveInt(env.LLAMACPP_TIMEOUT_MS) ?? 4000,
 		provider: env.LLAMACPP_PROVIDER || "llamacpp",
 		probe: !/^(0|false|off|no)$/i.test((env.LLAMACPP_PROBE ?? "").trim()),
-		maxOutputTokens: Number(env.LLAMACPP_MAX_OUTPUT_TOKENS) || DEFAULT_MAX_OUTPUT_TOKENS,
+		maxOutputTokens: positiveInt(env.LLAMACPP_MAX_OUTPUT_TOKENS) ?? DEFAULT_MAX_OUTPUT_TOKENS,
 		thinkingModels: splitPatterns(env.LLAMACPP_THINKING_MODELS),
 		nonThinkingModels: splitPatterns(env.LLAMACPP_NON_THINKING_MODELS),
 	};
@@ -213,7 +216,7 @@ export function resolveThinking(
 	if (config.nonThinkingModels.some((p) => globMatch(p, m.id))) return { reasoning: false, source: "env" };
 
 	const args = m.status?.args ?? [];
-	const reasoningFlag = argValue(args, "--reasoning")?.toLowerCase();
+	const reasoningFlag = argValue(args, "--reasoning", "-rea")?.toLowerCase();
 	const budget = argValue(args, "--reasoning-budget");
 	if (reasoningFlag === "off" || budget === "0" || args.includes("--no-jinja")) {
 		return { reasoning: false, source: "flag" };
@@ -299,7 +302,7 @@ export function maxOutputTokens(m: LlamaModel, config: LlamaConfig, ctx: number,
 	const pinned =
 		positiveInt(argValue(args, "--predict", "-n", "--n-predict")) ??
 		positiveInt(props?.default_generation_settings?.params?.n_predict);
-	return Math.min(pinned ?? config.maxOutputTokens, ctx);
+	return Math.max(1, Math.min(pinned ?? config.maxOutputTokens, ctx)); // pi rejects maxTokens <= 0
 }
 
 /** Map one `/v1/models` entry — plus its `/props` probe, when we got one — to a pi model. */
@@ -426,9 +429,13 @@ function readCache(path: string): Cache {
 function writeCache(path: string, entries: Cache): void {
 	try {
 		mkdirSync(dirname(path), { recursive: true });
-		writeFileSync(path, JSON.stringify({ version: 1, entries }, null, "\t"));
+		// Write-then-rename: two pi processes starting at once must never leave a
+		// half-written file behind for the next one to read.
+		const tmp = `${path}.${process.pid}.tmp`;
+		writeFileSync(tmp, JSON.stringify({ version: 1, entries }, null, "\t"));
+		renameSync(tmp, path);
 	} catch {
-		// A cache we cannot write is a cache we do without.
+		// A cache we cannot write — read-only FS, no HOME — is a cache we do without.
 	}
 }
 

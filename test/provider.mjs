@@ -170,6 +170,19 @@ check(
 );
 check("readConfig: LLAMACPP_PROBE=0 turns probing off", readConfig({ LLAMACPP_PROBE: "0" }).probe === false);
 check("readConfig: LLAMACPP_PROBE=1 keeps probing on", readConfig({ LLAMACPP_PROBE: "1" }).probe === true);
+check(
+	"readConfig: a nonsense env value falls back to the default rather than through it",
+	(() => {
+		const bad = readConfig({ LLAMACPP_TIMEOUT_MS: "-1", LLAMACPP_MAX_OUTPUT_TOKENS: "-5" });
+		// A negative timeout makes AbortSignal.timeout throw (degrading every model to the
+		// fallback); a negative maxTokens is a value pi rejects outright.
+		return bad.timeoutMs === 4000 && bad.maxOutputTokens === 16384;
+	})(),
+);
+check(
+	"maxTokens is never <= 0, whatever the environment says",
+	toModel({ id: "x" }, readConfig({ LLAMACPP_MAX_OUTPUT_TOKENS: "0" })).maxTokens > 0,
+);
 
 // ── context-window math ───────────────────────────────────────────────────────
 const cfg = readConfig({});
@@ -253,6 +266,10 @@ check(
 check(
 	"--reasoning-budget 0 beats a thinking template",
 	toModel({ id: "x", status: { args: ["--reasoning-budget", "0"] } }, cfg, { chat_template: QWEN3 }).reasoning === false,
+);
+check(
+	"-rea off is the same flag as --reasoning off",
+	toModel({ id: "x", status: { args: ["-rea", "off"] } }, cfg, { chat_template: QWEN3 }).reasoning === false,
 );
 check(
 	"--no-jinja beats a thinking template (llama.cpp cannot think without it)",
