@@ -136,7 +136,9 @@ Covered:
   to any LAN address.
 - **Context math** — slot division, the 2048 floor (before *and* after
   division), `--ctx-size` beating `meta.n_ctx`, the 8192 output cap, and
-  `maxTokens` never exceeding a small context window.
+  `maxTokens` never exceeding a small context window. *(All four have since
+  changed: the floor is gone, `meta.n_ctx` wins because it is already per-slot,
+  and `maxTokens` is a real output cap. See the README.)*
 - **Router payload** (the captured fixture) — all 9 models, per-model context /
   vision / thinking assertions, zero cost, `max_tokens`, no developer role, and
   the request landing on `/v1/models` with `Authorization: Bearer …`.

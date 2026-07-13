@@ -193,9 +193,12 @@ export type ThinkingSource = "env" | "flag" | "template" | "cache" | "kwargs" | 
  * Resolve thinking support, most authoritative signal first.
  *
  *  1. `LLAMACPP_THINKING_MODELS` / `LLAMACPP_NON_THINKING_MODELS` — the user's word is final.
- *  2. Server flags that make thinking *impossible*: `--reasoning off`, `--reasoning-budget 0`,
- *     `--no-jinja` (llama.cpp only enables thinking when the Jinja engine is on:
- *     `enable_thinking = enable_reasoning != 0 && template_supports_thinking`).
+ *  2. Server flags that make thinking *impossible*: `--reasoning off` and `--no-jinja`. Those
+ *     are the only two llama.cpp consults:
+ *     `enable_thinking = enable_reasoning != 0 && template_supports_thinking`.
+ *     `--reasoning-budget 0` is deliberately *not* one of them: it is a sampler knob that cuts
+ *     the thinking block short, not a template toggle, so the model still thinks — and reporting
+ *     it as non-thinking would leave pi unable to ask the template to suppress thinking cleanly.
  *  3. The chat template, read live from `GET /props` — ground truth.
  *  4. The template verdict cached from a previous run, for models the router has
  *     since unloaded.
@@ -218,7 +221,7 @@ export function resolveThinking(
 	const args = m.status?.args ?? [];
 	const reasoningFlag = argValue(args, "--reasoning", "-rea")?.toLowerCase();
 	const budget = argValue(args, "--reasoning-budget");
-	if (reasoningFlag === "off" || budget === "0" || args.includes("--no-jinja")) {
+	if (reasoningFlag === "off" || args.includes("--no-jinja")) {
 		return { reasoning: false, source: "flag" };
 	}
 
@@ -474,7 +477,7 @@ export async function discoverModels(
 	const path = cachePath(env);
 	const cache = config.probe ? readCache(path) : {};
 	const host = displayHost(config.baseUrl);
-	const key = (m: LlamaModel) => `${host}|${m.id}`;
+	const key = (m: LlamaModel) => `${encodeURIComponent(host)}|${encodeURIComponent(m.id)}`;
 
 	const probes = config.probe
 		? await Promise.all(entries.map((m) => fetchProps(config, m.id, fetchImpl, entries.length === 1)))

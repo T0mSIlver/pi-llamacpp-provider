@@ -81,9 +81,11 @@ that is what this extension reads, in this order:
 
 1. **`LLAMACPP_THINKING_MODELS` / `LLAMACPP_NON_THINKING_MODELS`** — comma-separated
    globs (`gemma4-*,qwen3?-*`). Your word is final.
-2. **Flags that make thinking impossible**: `--reasoning off`, `--reasoning-budget 0`,
-   `--no-jinja`. llama.cpp only enables thinking when Jinja is on *and* the template
-   supports it, so any of these settles it.
+2. **Flags that make thinking impossible**: `--reasoning off` and `--no-jinja`. Those two
+   are the only ones llama.cpp consults —
+   `enable_thinking = enable_reasoning != 0 && template_supports_thinking` — so either
+   settles it. `--reasoning-budget 0` is *not* one of them: it cuts the thinking block
+   short at the sampler, it does not remove the model's ability to think.
 3. **The chat template**, fetched live from `GET /props?model=<id>&autoload=0`. The
    `autoload=0` matters: without it a router would *load* the model — spawning a
    `llama-server` and filling VRAM — just to answer us. With it, a router answers for
@@ -155,7 +157,7 @@ transcripts: [docs/test-evidence.md](./docs/test-evidence.md).
 
 ```sh
 npm install
-npm run verify        # typecheck + test suite (needs Node ≥ 22.18)
+npm run verify        # typecheck + test suite (needs Node ≥ 22.19)
 pi install .          # smoke-test the package manifest against a local pi
 ```
 

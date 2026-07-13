@@ -14,8 +14,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
   matched against the markers llama.cpp keys on (`enable_thinking`,
   `reasoning_content`, `<think>`, `[THINK]`, `<|channel|>analysis`,
   `<|channel>thought`, …). Validated against all 59 templates in llama.cpp's
-  `models/templates`. Gemma 4, gpt-oss, DeepSeek-R1 and GLM are now recognised as
-  thinking models; Qwen3-Coder and other non-thinking Qwens no longer are.
+  `models/templates` (six of them ship as test fixtures). Gemma 4, gpt-oss,
+  DeepSeek-R1 and GLM are now recognised as thinking models; Qwen3-Coder and
+  other non-thinking Qwens no longer are.
   Verdicts are cached under `$XDG_CACHE_HOME/pi-llamacpp-provider/`, keyed by the
   preset's argv, so a model the router has since unloaded keeps its answer.
   Set `LLAMACPP_PROBE=0` to skip probing entirely.

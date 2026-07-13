@@ -1,4 +1,4 @@
-// Test harness for pi-llamacpp-provider (run with node >= 22.18 for native .ts import).
+// Test harness for pi-llamacpp-provider (run with node >= 22.19 for native .ts import).
 //
 // Exercises the extension against real HTTP servers rather than a stubbed fetch:
 // a llama.cpp *router* payload captured from a live server, a plain
@@ -264,8 +264,12 @@ check(
 	toModel({ id: "x", status: { args: ["--reasoning", "off"] } }, cfg, { chat_template: QWEN3 }).reasoning === false,
 );
 check(
-	"--reasoning-budget 0 beats a thinking template",
-	toModel({ id: "x", status: { args: ["--reasoning-budget", "0"] } }, cfg, { chat_template: QWEN3 }).reasoning === false,
+	// --reasoning-budget is a sampler knob that cuts the thinking block short, not a
+	// template toggle: llama.cpp's enable_thinking depends only on --reasoning and on
+	// template support. A model with budget 0 still thinks, and saying otherwise would
+	// leave pi unable to ask the template to suppress thinking cleanly.
+	"--reasoning-budget 0 does NOT make a thinking model non-thinking",
+	toModel({ id: "x", status: { args: ["--reasoning-budget", "0"] } }, cfg, { chat_template: QWEN3 }).reasoning === true,
 );
 check(
 	"-rea off is the same flag as --reasoning off",
