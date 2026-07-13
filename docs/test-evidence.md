@@ -1,5 +1,14 @@
 # Test evidence
 
+> **Recorded against v0.1.0.** The transcripts below are verbatim and unedited,
+> so they still show that release's derivations: thinking guessed from the model
+> id (`gemma4-*` reported as `no`, which is what prompted the rewrite),
+> `max-out` pinned at 8.2K, and `thinkingFormat: "qwen-chat-template"`. Since
+> then thinking is read from each model's chat template and `maxTokens` is a real
+> output cap — see the README. Everything else here (discovery, context windows,
+> vision, degraded startup) still holds. These will be re-recorded on the next
+> live run against the router.
+
 Collected 2026-07-09 on Debian 13, Node v24.18.0, against pi v0.80.3 and a
 **live llama.cpp router** serving 9 presets on the LAN (its address is written
 below as `$LLAMA_HOST`; the extension was pointed at it with
@@ -127,7 +136,9 @@ Covered:
   to any LAN address.
 - **Context math** — slot division, the 2048 floor (before *and* after
   division), `--ctx-size` beating `meta.n_ctx`, the 8192 output cap, and
-  `maxTokens` never exceeding a small context window.
+  `maxTokens` never exceeding a small context window. *(All four have since
+  changed: the floor is gone, `meta.n_ctx` wins because it is already per-slot,
+  and `maxTokens` is a real output cap. See the README.)*
 - **Router payload** (the captured fixture) — all 9 models, per-model context /
   vision / thinking assertions, zero cost, `max_tokens`, no developer role, and
   the request landing on `/v1/models` with `Authorization: Bearer …`.
