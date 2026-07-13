@@ -3,7 +3,7 @@
 All notable changes to this project are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [SemVer](https://semver.org/).
 
-## [Unreleased]
+## [0.2.0] - 2026-07-13
 
 ### Changed
 
@@ -81,4 +81,5 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [S
   thinking derivation, end-to-end completions on both a text and a thinking
   model, and degraded startup. See `docs/test-evidence.md`.
 
+[0.2.0]: https://github.com/T0mSIlver/pi-llamacpp-provider/releases/tag/v0.2.0
 [0.1.0]: https://github.com/T0mSIlver/pi-llamacpp-provider/releases/tag/v0.1.0

@@ -32,7 +32,7 @@ Or straight from git, or pinned, or just for one run:
 
 ```sh
 pi install git:github.com/T0mSIlver/pi-llamacpp-provider
-pi install npm:pi-llamacpp-provider@0.1.0   # pinned, skipped by pi update
+pi install npm:pi-llamacpp-provider@0.2.0   # pinned, skipped by pi update
 pi -e npm:pi-llamacpp-provider              # try without installing
 ```
 

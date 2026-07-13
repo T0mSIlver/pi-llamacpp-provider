@@ -1,6 +1,6 @@
 {
   "name": "pi-llamacpp-provider",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "pi extension that registers your llama.cpp server as a provider and auto-discovers every model it exposes at /v1/models — context size, vision and thinking support included",
   "type": "module",
   "license": "MIT",
