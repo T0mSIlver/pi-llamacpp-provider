@@ -12,12 +12,15 @@ change.
 ```
 $ pi --list-models llamacpp
 provider  model            context  max-out  thinking  images
-llamacpp  fastcontext      80K      8.2K     no        no
-llamacpp  gemma4-12b       131.1K   8.2K     no        yes
-llamacpp  gemma4-31b       100K     8.2K     no        no
-llamacpp  ornith-35b       262.1K   8.2K     yes       yes
-llamacpp  qwen36a3b-35b    262.1K   8.2K     yes       yes
+llamacpp  fastcontext      80K      16.4K    no        no
+llamacpp  gemma4-12b       131.1K   16.4K    yes       yes
+llamacpp  gemma4-31b       100K     16.4K    yes       no
+llamacpp  ornith-35b       262.1K   16.4K    yes       yes
+llamacpp  qwen36a3b-35b    262.1K   16.4K    yes       yes
 ```
+
+`thinking` is read from each model's **chat template** — the same thing llama.cpp
+itself uses to decide whether a model reasons — not guessed from its name.
 
 ## Install
 
@@ -49,24 +52,65 @@ pi --models 'llamacpp/*'    # cycle every llama.cpp model with Ctrl+P
 
 ## What it reads from your server
 
-At startup the extension calls `GET /v1/models` and maps each entry to a pi
-model. Two server shapes are supported, because their payloads differ:
+At startup the extension calls `GET /v1/models`, then probes each model once at
+`GET /props`, and maps every entry to a pi model. Two server shapes are
+supported, because their payloads differ:
 
 | Server | What the payload gives us |
 |---|---|
-| **Router** (`llama-server --router`, multi-preset) | `status.args` — the full `llama-server` argv per preset — plus `preset` and `architecture.input_modalities` |
-| **Plain `llama-server`** (single model) | a `meta` block with `n_ctx` / `n_ctx_train` |
+| **Router** (`llama-server` with no model, multi-preset) | `status.args` — the full `llama-server` argv per preset — plus `status.preset` and `architecture.input_modalities`. A `meta` block appears only for a preset that is currently loaded. |
+| **Plain `llama-server`** (single model) | a `meta` block with `n_ctx` / `n_ctx_train`, and everything else from `/props`. |
 
 From that, per model:
 
 | pi field | Derived from |
 |---|---|
-| `contextWindow` | `--ctx-size ÷ --parallel` — llama.cpp splits the context evenly across slots, so this is what one conversation actually gets. Falls back to `meta.n_ctx`, then `meta.n_ctx_train`, then llama.cpp's own 4096 default. Floored at 2048. |
-| `input` | `["text", "image"]` when the model reports an `image` modality (i.e. it was started with `--mmproj`), else `["text"]`. Audio modalities are dropped — pi models declare text and image only. |
-| `reasoning` | True when the model id matches `/qwen/i`, or the preset/argv contains `preserve_thinking` or `enable_thinking`. Thinking models also get `compat.thinkingFormat = "qwen-chat-template"`, so pi toggles thinking through `chat_template_kwargs` rather than OpenAI's `reasoning_effort`, which llama.cpp does not implement. |
-| `maxTokens` | The context window, capped at 8192. |
+| `contextWindow` | What one conversation actually gets: the per-slot `n_ctx` from `/props` or `meta` when the model is loaded (already divided by `--parallel`), else `--ctx-size ÷ --parallel`, else `meta.n_ctx_train ÷ --parallel`, else llama.cpp's own 4096 default. Reported honestly, even when it is small. |
+| `maxTokens` | **Max output tokens for one turn** — not the context window. The preset's `--predict` / `-n` / `--n-predict` if it pins one, else `LLAMACPP_MAX_OUTPUT_TOKENS` (16384 by default), clamped to the context window. llama.cpp's own default is -1, "generate until the context is full", which is not a number pi can budget against. |
+| `reasoning` | The model's **chat template** — see below. |
+| `input` | `["text", "image"]` when the model reports an `image` modality (a router says so in `architecture`, a plain server in `/props` `modalities`), else `["text"]`. Audio is dropped — pi models declare text and image only. |
 | `cost` | Zero — local inference is free, and pi's session cost readout should say so. |
 | `compat` | `supportsDeveloperRole: false` (llama.cpp chat templates expect a `system` role) and `maxTokensField: "max_tokens"` (it rejects `max_completion_tokens`). |
+
+## How thinking support is detected
+
+llama.cpp decides whether a model reasons by *rendering its chat template* and
+looking at what comes out ([`common_chat_templates_support_enable_thinking`](https://github.com/ggml-org/llama.cpp/blob/master/common/chat.cpp)).
+That template is the only honest answer, and it is published at `GET /props`. So
+that is what this extension reads, in this order:
+
+1. **`LLAMACPP_THINKING_MODELS` / `LLAMACPP_NON_THINKING_MODELS`** — comma-separated
+   globs (`gemma4-*,qwen3?-*`). Your word is final.
+2. **Flags that make thinking impossible**: `--reasoning off`, `--reasoning-budget 0`,
+   `--no-jinja`. llama.cpp only enables thinking when Jinja is on *and* the template
+   supports it, so any of these settles it.
+3. **The chat template**, fetched live from `GET /props?model=<id>&autoload=0`. The
+   `autoload=0` matters: without it a router would *load* the model — spawning a
+   `llama-server` and filling VRAM — just to answer us. With it, a router answers for
+   what it already has in memory and replies "not loaded" for the rest, which we take
+   as "no answer", never as a failure. The template is matched against the markers
+   llama.cpp itself keys on: `enable_thinking`, `reasoning_content`, `<think>` and its
+   variants, `[THINK]`, `<|channel|>analysis` (gpt-oss), `<|channel>thought` (Gemma 4).
+   This is validated against all 59 chat templates shipped in llama.cpp's
+   `models/templates`, and it is why Gemma 4 is a thinking model here and Qwen3-Coder
+   is not.
+4. **A cached verdict.** A router only answers `/props` for what it has loaded, so a
+   template we read once is remembered under `$XDG_CACHE_HOME/pi-llamacpp-provider/`,
+   keyed by the preset's argv — edit the preset and the entry is dropped. A model the
+   router has since unloaded keeps the answer its own template gave.
+5. **The preset**, finally: a `--chat-template-kwargs` carrying a thinking switch
+   (`enable_thinking`, `preserve_thinking`, …), a positive `--reasoning-budget`, or
+   `--reasoning on`. A preset only configures a thinking switch for a model that has one.
+6. **Otherwise: no.** No evidence, no claim — the model id is never consulted, because
+   a name is not a capability.
+
+Thinking models get `compat.thinkingFormat = "chat-template"` with
+`chat_template_kwargs: { enable_thinking, preserve_reasoning, preserve_thinking }`, so
+pi toggles thinking the way llama.cpp expects rather than through OpenAI's
+`reasoning_effort`, which llama.cpp does not implement.
+
+Set `LLAMACPP_PROBE=0` to skip probing altogether; detection then falls back to steps
+1, 2, 5 and 6.
 
 ## When the server is down
 
@@ -91,8 +135,12 @@ Start the server and `/reload` — no restart needed.
 | `LLAMACPP_API_KEY` | `sk-llamacpp-local` | Sent as `Authorization: Bearer …`. llama.cpp ignores it unless started with `--api-key`, but pi needs a non-empty key to treat the provider as authenticated. |
 | `LLAMACPP_TIMEOUT_MS` | `4000` | How long discovery may take before falling back. |
 | `LLAMACPP_PROVIDER` | `llamacpp` | Provider name, i.e. the `…/model-id` prefix. Change it to avoid clashing with a `llamacpp` provider defined in `models.json`. |
+| `LLAMACPP_MAX_OUTPUT_TOKENS` | `16384` | `maxTokens` for models whose preset does not pin a `--predict`. |
+| `LLAMACPP_THINKING_MODELS` | — | Comma-separated globs forced to `reasoning: true`, e.g. `gemma4-*,my-model`. |
+| `LLAMACPP_NON_THINKING_MODELS` | — | The same, forced to `reasoning: false`. |
+| `LLAMACPP_PROBE` | `1` | Set to `0` to skip the `/props` probe entirely. |
 
-All four are read on every load, so `/reload` picks up a change without a
+All of them are read on every load, so `/reload` picks up a change without a
 reinstall.
 
 ## Test evidence
@@ -111,10 +159,13 @@ npm run verify        # typecheck + test suite (needs Node ≥ 22.18)
 pi install .          # smoke-test the package manifest against a local pi
 ```
 
-`test/provider.mjs` runs the extension against throwaway HTTP servers — a
-router payload captured from a real llama.cpp router, a plain `llama-server`
-payload, and every failure mode (500, timeout, refused connection, malformed
-JSON, empty list) — asserting the fallback and the once-per-process warning.
+`test/provider.mjs` runs the extension against throwaway HTTP servers — a router
+payload captured from a real llama.cpp router, a plain `llama-server` payload,
+and every failure mode (500, timeout, refused connection, malformed JSON, empty
+list) — asserting the fallback and the once-per-process warning. Thinking
+detection is checked against real chat templates lifted from llama.cpp's
+`models/templates` (`test/fixtures/templates/`): Gemma 4, Qwen3, gpt-oss and
+Ministral-Reasoning must all reason; Qwen3-Coder and Llama 3.3 must not.
 
 ## License
 
