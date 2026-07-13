@@ -130,13 +130,14 @@ export function rootUrl(baseUrl: string): string {
 	return baseUrl.replace(/\/v1$/, "");
 }
 
-/** Read the value following `flag` (or any of its aliases) in a llama-server argv array. */
+/**
+ * Read the value following `flag`, or any of its aliases, in a llama-server argv array.
+ * llama.cpp lets the last occurrence win, and does not care which spelling it was
+ * (`-c` and `--ctx-size` are the same flag), so take the last position across them all.
+ */
 export function argValue(args: string[], ...flags: string[]): string | undefined {
-	for (const flag of flags) {
-		const i = args.lastIndexOf(flag); // a repeated flag: llama.cpp keeps the last
-		if (i >= 0 && i + 1 < args.length) return args[i + 1];
-	}
-	return undefined;
+	const i = Math.max(...flags.map((flag) => args.lastIndexOf(flag)));
+	return i >= 0 && i + 1 < args.length ? args[i + 1] : undefined;
 }
 
 /** Positive integer or undefined — `--ctx-size 0` means "take it from the model", not "zero". */
@@ -404,6 +405,9 @@ interface CacheEntry {
 }
 type Cache = Record<string, CacheEntry>;
 
+/** Bump when the key or entry format changes: a file at another version is discarded, not read. */
+const CACHE_VERSION = 2;
+
 /** FNV-1a over the argv — a preset change must not keep an old verdict alive. */
 export function argsSignature(m: LlamaModel): string {
 	const input = (m.status?.args ?? []).join(" ");
@@ -423,7 +427,7 @@ export function cachePath(env: NodeJS.ProcessEnv = process.env): string {
 function readCache(path: string): Cache {
 	try {
 		const parsed = JSON.parse(readFileSync(path, "utf8")) as { version?: number; entries?: Cache };
-		return parsed?.version === 1 && parsed.entries ? parsed.entries : {};
+		return parsed?.version === CACHE_VERSION && parsed.entries ? parsed.entries : {};
 	} catch {
 		return {}; // absent, unreadable or from a future version — start over
 	}
@@ -435,7 +439,7 @@ function writeCache(path: string, entries: Cache): void {
 		// Write-then-rename: two pi processes starting at once must never leave a
 		// half-written file behind for the next one to read.
 		const tmp = `${path}.${process.pid}.tmp`;
-		writeFileSync(tmp, JSON.stringify({ version: 1, entries }, null, "\t"));
+		writeFileSync(tmp, JSON.stringify({ version: CACHE_VERSION, entries }, null, "\t"));
 		renameSync(tmp, path);
 	} catch {
 		// A cache we cannot write — read-only FS, no HOME — is a cache we do without.

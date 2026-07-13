@@ -143,6 +143,12 @@ check("argValue returns undefined when absent", argValue(["--parallel", "2"], "-
 check("argValue returns undefined for a trailing flag", argValue(["--slots"], "--slots") === undefined);
 check("argValue accepts flag aliases", argValue(["-c", "8192"], "--ctx-size", "-c") === "8192");
 check("argValue takes the last of a repeated flag", argValue(["-n", "10", "-n", "20"], "-n") === "20");
+check(
+	// llama.cpp does not care which spelling was used; the last occurrence wins.
+	"argValue takes the last occurrence across aliases, not the first alias listed",
+	argValue(["--reasoning", "off", "-rea", "on"], "--reasoning", "-rea") === "on" &&
+		argValue(["-rea", "on", "--reasoning", "off"], "--reasoning", "-rea") === "off",
+);
 
 // ── glob overrides ────────────────────────────────────────────────────────────
 check("globMatch is case-insensitive and honours *", globMatch("gemma4-*", "GEMMA4-31b") && !globMatch("gemma4-*", "qwen3"));
